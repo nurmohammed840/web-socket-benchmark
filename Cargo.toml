@@ -1,0 +1,10 @@
+[package]
+name = "web-socket-benchmark"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+futures-util = "0.3"
+tokio-tungstenite = "*"
+tokio = { version = "1", default-features = false, features = ["macros", "rt-multi-thread", "net"] }
+web-socket = "0.5"
