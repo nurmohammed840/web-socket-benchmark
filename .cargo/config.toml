@@ -1,2 +1,2 @@
-[env]
-CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
+[registries.crates-io]
+protocol = "sparse"
