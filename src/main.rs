@@ -16,8 +16,8 @@ async fn main() {
     if cfg!(debug_assertions) {
         println!("{HELP}");
     }
+    tokio_tungstenite_banchmark::run().await;
     websocket_banchmark::run().await;
-    tungstenite_banchmark::run().await;
 }
 
 mod websocket_banchmark {
@@ -27,7 +27,7 @@ mod websocket_banchmark {
         let (server_stream, client_stream) = duplex(ITER * (MSG.len() + 14));
         let server = spawn(server(server_stream));
         let client = spawn(client(client_stream));
-        server.await.unwrap().unwrap();
+        let _ = server.await.unwrap();
         client.await.unwrap().unwrap();
     }
 
@@ -47,8 +47,8 @@ mod websocket_banchmark {
 
     async fn server(stream: DuplexStream) -> Result<()> {
         let mut ws = WebSocket::server(BufReader::new(stream));
-        while let Ok(ev) = ws.recv().await {
-            match ev {
+        loop {
+            match ws.recv().await? {
                 Event::Data { data, ty } => match ty {
                     DataType::Fragment(_) => unimplemented!(),
                     DataType::Complete(ty) => match ty {
@@ -56,17 +56,15 @@ mod websocket_banchmark {
                         MessageType::Binary => ws.send(&*data).await?,
                     },
                 },
-                Event::Ping(data) => ws.send_pong(data).await?,
                 Event::Pong(..) => {}
-                Event::Error(..) => return ws.close(CloseCode::ProtocolError).await,
-                Event::Close { .. } => return ws.close(()).await,
+                Event::Ping(data) => ws.send_pong(data).await?,
+                Event::Error(..) | Event::Close { .. } => return ws.close(()).await,
             }
         }
-        Ok(())
     }
 }
 
-mod tungstenite_banchmark {
+mod tokio_tungstenite_banchmark {
     use super::*;
     use futures_util::{SinkExt, StreamExt};
     use tokio_tungstenite::{
@@ -86,6 +84,7 @@ mod tungstenite_banchmark {
         let (mut ws, _) = client_async("ws://localhost:9001", BufReader::new(stream))
             .await
             .unwrap();
+
         let time = Instant::now();
 
         for _ in 0..ITER {
@@ -97,7 +96,7 @@ mod tungstenite_banchmark {
                 _ => unimplemented!(),
             }
         }
-        Ok(println!("tungstenite: {:?}", time.elapsed()))
+        Ok(println!("tokio-tungstenite: {:?}", time.elapsed()))
     }
 
     async fn server(stream: DuplexStream) {
