@@ -512,9 +512,9 @@ checksum = "9c8d87e72b64a3b4db28d11ce29237c246188f4f51057d65a7eab63b7987e423"
 
 [[package]]
 name = "web-socket"
-version = "0.5.1"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb93691968b95481ad9d701b1a0f35b4df2b8394f9d6cd966d2ffb0c2738ad23"
+checksum = "084a1aaa538e2a82a614e78a6c5965ab5092c9cce6ab7c11168eb8443814f6a3"
 dependencies = [
  "rand",
  "tokio",

@@ -57,7 +57,7 @@ mod websocket_banchmark {
                     },
                 },
                 Event::Pong(..) => {}
-                Event::Ping(data) => ws.send_pong(data).await?,
+                Event::Ping(data) => ws.send(Pong(data)).await?,
                 Event::Error(..) | Event::Close { .. } => return ws.close(()).await,
             }
         }
@@ -112,6 +112,7 @@ mod tokio_tungstenite_banchmark {
         let mut ws = accept_async(BufReader::new(stream))
             .await
             .expect("Failed to accept");
+
         while let Some(msg) = ws.next().await {
             let msg = msg?;
             if msg.is_text() || msg.is_binary() {
