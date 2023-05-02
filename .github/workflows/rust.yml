@@ -2,9 +2,8 @@ name: Rust
 
 on:
   push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
+    tags:
+      - 'bench*'
 
 env:
   CARGO_TERM_COLOR: always
@@ -16,4 +15,4 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Run benchmark
-      run: cargo run --release -- -C codegen-units=1 -C opt-level=3
+      run: cargo run -r -- -C codegen-units=1 -C opt-level=3
