@@ -114,7 +114,7 @@ mod fastwebsockets_banchmark {
         }
         for _ in 0..ITER {
             let frame = ws.read_frame().await?;
-            assert_eq!(frame.fin, true);
+            assert!(frame.fin);
             assert_eq!(frame.opcode, OpCode::Text);
             assert_eq!(std::str::from_utf8(&frame.payload), Ok(MSG));
         }
