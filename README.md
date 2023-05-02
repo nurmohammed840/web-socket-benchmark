@@ -13,6 +13,7 @@ cargo run --release -- -C codegen-units=1 -C opt-level=3
 ### Result
 
 ```
-web-socket:  30.373163ms
-tungstenite: 119.015605ms
+web-socket:  33.369744ms
+fastwebsockets:  42.73404ms
+tokio-tungstenite: 134.120882ms
 ```
