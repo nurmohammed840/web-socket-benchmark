@@ -16,11 +16,14 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     
+    - name: Build
+      run: cargo build -r -- -C codegen-units=1 -C opt-level=3
+
     - name: Run benchmark I
-      run: cargo run -r -- -C codegen-units=1 -C opt-level=3
+      run: cargo run -r
 
     - name: Run benchmark II
-      run: cargo run -r -- -C codegen-units=1 -C opt-level=3
+      run: cargo run -r
 
     - name: Run benchmark III
-      run: cargo run -r -- -C codegen-units=1 -C opt-level=3
+      run: cargo run -r
