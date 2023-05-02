@@ -107,7 +107,7 @@ mod fastwebsockets_banchmark {
             ws.write_frame(Frame::new(
                 true,
                 OpCode::Text,
-                Some([1, 2, 3, 4]),
+                Some(rand::random()),
                 MSG.into(),
             ))
             .await?;
@@ -122,7 +122,7 @@ mod fastwebsockets_banchmark {
         ws.write_frame(Frame::new(
             true,
             OpCode::Close,
-            Some([4, 3, 2, 1]),
+            Some(rand::random()),
             Vec::new(),
         ))
         .await?;

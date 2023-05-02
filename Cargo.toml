@@ -9,3 +9,4 @@ tokio-tungstenite = "*"
 tokio = { version = "1", default-features = false, features = ["macros", "rt-multi-thread", "net"] }
 web-socket = { git = "https://github.com/nurmohammed840/websocket.rs.git", branch = "main" }
 fastwebsockets = "0.3.1"
+rand = "0.8.5"
