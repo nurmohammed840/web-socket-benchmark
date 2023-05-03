@@ -1,5 +1,4 @@
 use std::{fmt::Debug, future::Future, str, time::Instant};
-use tokio::io::BufReader;
 
 const ITER: usize = 100000;
 const MSG: &str = "Hello, World!\n";
