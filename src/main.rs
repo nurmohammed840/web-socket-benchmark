@@ -158,7 +158,7 @@ mod tokio_tungstenite_banchmark {
 
         let time = Instant::now();
         for _ in 0..ITER {
-            ws.send(Message::Text(MSG.to_owned())).await?;
+            ws.feed(Message::Text(MSG.to_owned())).await?;
         }
         for _ in 0..ITER {
             match ws.next().await.unwrap()? {
@@ -176,7 +176,7 @@ mod tokio_tungstenite_banchmark {
         while let Some(msg) = ws.next().await {
             let msg = msg?;
             if msg.is_text() || msg.is_binary() {
-                ws.send(msg).await?;
+                ws.feed(msg).await?;
             }
         }
         Ok(())
