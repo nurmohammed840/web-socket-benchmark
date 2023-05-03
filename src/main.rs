@@ -45,7 +45,7 @@ mod websocket_banchmark {
     }
 
     async fn client(stream: Stream) -> Result<()> {
-        let mut ws = WebSocket::client(stream);
+        let mut ws = WebSocket::client(BufReader::new(stream));
         let time = Instant::now();
         for _ in 0..ITER {
             ws.send(MSG).await?;
