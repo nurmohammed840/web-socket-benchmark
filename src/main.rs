@@ -110,6 +110,7 @@ mod fastwebsockets_banchmark {
             let frame = ws.read_frame().await?;
             assert!(frame.fin);
             assert_eq!(frame.opcode, OpCode::Text);
+            assert_eq!(frame.payload, MSG.as_bytes());
         }
 
         ws.write_frame(Frame::new(true, OpCode::Close, None, (&[] as &[u8]).into()))
