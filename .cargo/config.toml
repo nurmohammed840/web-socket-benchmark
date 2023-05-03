@@ -1,5 +1,0 @@
-[registries.crates-io]
-protocol = "sparse"
-
-[env]
-RUSTFLAGS = "-C codegen-units=1 -C opt-level=3"

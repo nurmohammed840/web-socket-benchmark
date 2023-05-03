@@ -8,5 +8,6 @@ futures-util = "0.3"
 tokio-tungstenite = "*"
 tokio = { version = "1", default-features = false, features = ["macros", "rt-multi-thread", "net"] }
 web-socket = { git = "https://github.com/nurmohammed840/websocket.rs.git", branch = "main" }
-fastwebsockets = "0.3"
+# fastwebsockets = "0.4"
+fastwebsockets = { path = "../fastwebsockets"}
 rand = "0.8"
