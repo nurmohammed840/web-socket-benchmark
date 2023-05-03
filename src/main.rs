@@ -66,7 +66,7 @@ mod websocket_banchmark {
     }
 
     async fn server(stream: Stream) -> Result<()> {
-        let mut ws = WebSocket::server(stream);
+        let mut ws = WebSocket::server(BufReader::new(stream));
         loop {
             match ws.recv().await? {
                 Event::Data { data, ty } => match ty {
