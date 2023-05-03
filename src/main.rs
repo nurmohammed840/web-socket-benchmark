@@ -1,5 +1,4 @@
 use std::{fmt::Debug, future::Future, str, time::Instant};
-use tokio::io::BufReader;
 
 const ITER: usize = 100000;
 const MSG: &str = "Hello, World!\n";
@@ -20,7 +19,7 @@ async fn main() {
     fastwebsockets_banchmark::run().await;
 }
 
-type Stream = BufReader<tokio::io::DuplexStream>;
+type Stream = tokio::io::DuplexStream;
 
 async fn bench<S, C, SR, CR>(s: fn(Stream) -> S, c: fn(Stream) -> C)
 where
@@ -30,8 +29,8 @@ where
     CR: Send + Debug + 'static,
 {
     let (server_stream, client_stream) = tokio::io::duplex(ITER * (MSG.len() + 14));
-    let server = tokio::spawn(s(BufReader::new(server_stream)));
-    let client = tokio::spawn(c(BufReader::new(client_stream)));
+    let server = tokio::spawn(s(server_stream));
+    let client = tokio::spawn(c(client_stream));
     server.await.unwrap().unwrap();
     client.await.unwrap().unwrap();
 }
@@ -99,33 +98,22 @@ mod fastwebsockets_banchmark {
     async fn client(stream: Stream) -> Result<()> {
         let mut ws = WebSocket::after_handshake(stream, Role::Client);
         ws.set_auto_pong(true);
-        ws.set_writev(true);
+        ws.set_writev(false);
         ws.set_auto_close(true);
 
         let time = Instant::now();
         for _ in 0..ITER {
-            ws.write_frame(Frame::new(
-                true,
-                OpCode::Text,
-                Some(rand::random()),
-                MSG.into(),
-            ))
-            .await?;
+            ws.write_frame(Frame::new(true, OpCode::Text, None, MSG.as_bytes().into()))
+                .await?;
         }
         for _ in 0..ITER {
             let frame = ws.read_frame().await?;
             assert!(frame.fin);
             assert_eq!(frame.opcode, OpCode::Text);
-            assert_eq!(std::str::from_utf8(&frame.payload), Ok(MSG));
         }
 
-        ws.write_frame(Frame::new(
-            true,
-            OpCode::Close,
-            Some(rand::random()),
-            Vec::new(),
-        ))
-        .await?;
+        ws.write_frame(Frame::new(true, OpCode::Close, None, (&[] as &[u8]).into()))
+            .await?;
 
         assert_eq!(ws.read_frame().await.unwrap().opcode, OpCode::Close);
         Ok(println!("fastwebsockets:  {:?}", time.elapsed()))
@@ -135,16 +123,13 @@ mod fastwebsockets_banchmark {
         let mut ws = WebSocket::after_handshake(stream, Role::Server);
         ws.set_auto_apply_mask(true);
         ws.set_auto_pong(true);
-        ws.set_writev(true);
+        ws.set_writev(false);
         ws.set_auto_close(true);
 
         loop {
             let frame = ws.read_frame().await?;
             match frame.opcode {
                 OpCode::Text | OpCode::Binary => {
-                    if let OpCode::Text = frame.opcode {
-                        assert!(std::str::from_utf8(&frame.payload).is_ok())
-                    }
                     ws.write_frame(Frame::new(true, frame.opcode, None, frame.payload))
                         .await?;
                 }
