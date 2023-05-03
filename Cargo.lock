@@ -538,7 +538,7 @@ checksum = "9c8d87e72b64a3b4db28d11ce29237c246188f4f51057d65a7eab63b7987e423"
 [[package]]
 name = "web-socket"
 version = "0.6.0"
-source = "git+https://github.com/nurmohammed840/websocket.rs.git?branch=main#d9d21a9cc8a2ae4876716011b2904243c96660a2"
+source = "git+https://github.com/nurmohammed840/websocket.rs.git?branch=main#68a49e777e6e7b72f95e01c1ce923d0fbe342102"
 dependencies = [
  "rand",
  "tokio",
