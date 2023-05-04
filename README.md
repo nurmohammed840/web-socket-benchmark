@@ -7,13 +7,26 @@
 ### Run benchmark
 
 ```bash
-cargo run --release -- -C codegen-units=1 -C opt-level=3
+cargo run -r
 ```
 
 ### Result
 
 ```
-web-socket:  32.26691ms
-fastwebsockets:  38.675652ms
-tokio-tungstenite: 142.147423ms
+tokio_tungstenite (send):  22.08092ms
+tokio_tungstenite (echo):  50.137045ms
+tokio_tungstenite (recv):  29.825227ms
+tokio_tungstenite:         102.059792ms
+
+
+web-socket (send):  5.817706ms
+web-socket (echo):  17.335015ms
+web-socket (recv):  8.911808ms
+web-socket:         32.064929ms
+
+
+fastwebsockets (send):  8.323607ms
+fastwebsockets (echo):  15.534314ms
+fastwebsockets (recv):  9.254209ms
+fastwebsockets:         33.11283ms
 ```

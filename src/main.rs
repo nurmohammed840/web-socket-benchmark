@@ -3,6 +3,7 @@ use std::time::Instant;
 
 const ITER: usize = 100000;
 const MSG: &str = "Hello, World!\n";
+const CAPACITY: usize = (MSG.len() + 14) * ITER;
 // const MSG: &str = HELP;
 
 const HELP: &str = "Please run with `--release` flag for accurate results.
@@ -11,23 +12,24 @@ Example:
     cargo run -r -- -C codegen-units=1 -C opt-level=3
 ";
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() {
+fn main() {
     if cfg!(debug_assertions) {
         println!("{HELP}");
     }
-    tokio_tungstenite_banchmark::run().await.unwrap();
-    web_socket_banchmark::run().await.unwrap();
-    fastwebsockets_banchmark::run().await.unwrap();
+    bench::block_on(async {
+        tokio_tungstenite_banchmark::run().await.unwrap();
+        web_socket_banchmark::run().await.unwrap();
+        fastwebsockets_banchmark::run().await.unwrap();
+    });
 }
 
 mod web_socket_banchmark {
     use super::*;
-    use tokio::io::*;
+    use std::io::Result;
     use web_socket::*;
 
     pub async fn run() -> Result<()> {
-        let mut stream = bench::Stream::new((MSG.len() + 14) * ITER);
+        let mut stream = bench::Stream::new(CAPACITY);
         let total = Instant::now();
 
         // ------------------------------------------------
@@ -97,7 +99,7 @@ mod fastwebsockets_banchmark {
     type Result<T, E = DynErr> = std::result::Result<T, E>;
 
     pub async fn run() -> Result<()> {
-        let mut stream = bench::Stream::new((MSG.len() + 14) * ITER);
+        let mut stream = bench::Stream::new(CAPACITY);
         let total = Instant::now();
 
         // ------------------------------------------------
@@ -177,7 +179,7 @@ mod tokio_tungstenite_banchmark {
     };
 
     pub async fn run() -> Result<()> {
-        let mut stream = bench::Stream::new((MSG.len() + 14) * ITER);
+        let mut stream = bench::Stream::new(CAPACITY);
         let total = Instant::now();
 
         // ------------------------------------------------

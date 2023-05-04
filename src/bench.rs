@@ -98,3 +98,28 @@ impl Stream {
         }
     }
 }
+
+// -------------------------
+
+use std::task::*;
+
+const DATA: () = ();
+const VTABLE: RawWakerVTable =
+    RawWakerVTable::new(|_| RawWaker::new(&DATA, &VTABLE), no_op, no_op, no_op);
+
+fn no_op(_: *const ()) {}
+
+pub fn block_on<Fut>(mut fut: Fut) -> Fut::Output
+where
+    Fut: std::future::Future,
+{
+    let waker = unsafe { Waker::from_raw(RawWaker::new(&DATA, &VTABLE)) };
+    let mut cx = Context::from_waker(&waker);
+    let mut fut = std::pin::pin!(fut);
+    loop {
+        match fut.as_mut().poll(&mut cx) {
+            Poll::Ready(output) => break output,
+            Poll::Pending => {}
+        }
+    }
+}

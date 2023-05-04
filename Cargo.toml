@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-futures-util = "0.3"
+futures-util = { version = "0.3", default-features = false }
+tokio = { version = "1", default-features = false }
+
 tokio-tungstenite = "*"
-tokio = { version = "1", default-features = false, features = ["macros", "rt-multi-thread", "net"] }
-web-socket = { git = "https://github.com/nurmohammed840/websocket.rs.git", branch = "main" }
 fastwebsockets = "0.4"
-rand = "0.8"
+web-socket = { git = "https://github.com/nurmohammed840/websocket.rs.git", branch = "main" }
