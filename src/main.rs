@@ -1,10 +1,10 @@
+#![allow(warnings)]
 mod bench;
 use std::time::Instant;
 
 const ITER: usize = 100000;
 const MSG: &str = "Hello, World!\n";
 const CAPACITY: usize = (MSG.len() + 14) * ITER;
-// const MSG: &str = HELP;
 
 const HELP: &str = "Please run with `--release` flag for accurate results.
 Example:
@@ -26,7 +26,18 @@ fn main() {
 mod web_socket_banchmark {
     use super::*;
     use std::io::Result;
+    use tokio::io::AsyncWrite;
     use web_socket::*;
+
+    async fn send_msg<IO>(ws: &mut WebSocket<IO>, ty: MessageType, buf: &[u8]) -> Result<()>
+    where
+        IO: Unpin + AsyncWrite,
+    {
+        match ty {
+            MessageType::Text => ws.send(std::str::from_utf8(buf).unwrap()).await,
+            MessageType::Binary => ws.send(buf).await,
+        }
+    }
 
     pub async fn run() -> Result<()> {
         let mut stream = bench::Stream::new(CAPACITY);
@@ -50,17 +61,22 @@ mod web_socket_banchmark {
 
         let mut ws = WebSocket::server(&mut stream);
         let echo = Instant::now();
+
+        let mut buf = Vec::new();
         loop {
-            match ws.recv().await? {
+            match ws.recv_event().await? {
                 Event::Data { data, ty } => match ty {
-                    DataType::Fragment(_) => unimplemented!(),
-                    DataType::Complete(ty) => match ty {
-                        MessageType::Text => ws.send(std::str::from_utf8(&data).unwrap()).await?,
-                        MessageType::Binary => ws.send(&*data).await?,
-                    },
+                    DataType::Stream(stream) => {
+                        buf.extend_from_slice(&data);
+                        if let Stream::End(ty) = stream {
+                            send_msg(&mut ws, ty, &buf).await?;
+                            buf.clear();
+                        }
+                    }
+                    DataType::Complete(ty) => send_msg(&mut ws, ty, &data).await?,
                 },
                 Event::Pong(..) => {}
-                Event::Ping(data) => ws.send(Pong(data)).await?,
+                Event::Ping(data) => ws.send_ping(data).await?,
                 Event::Error(..) | Event::Close { .. } => break ws.close(()).await?,
             }
         }
@@ -73,11 +89,11 @@ mod web_socket_banchmark {
         let recv = Instant::now();
 
         for _ in 0..ITER {
-            let Ok(Event::Data { ty, data }) = ws.recv().await else { panic!("invalid data") };
+            let Ok(Event::Data { ty, data }) = ws.recv_event().await else { panic!("invalid data") };
             assert_eq!(ty, DataType::Complete(MessageType::Text));
             assert_eq!(std::str::from_utf8(&data), Ok(MSG));
         }
-        assert!(matches!(ws.recv().await, Ok(Event::Close { .. })));
+        assert!(matches!(ws.recv_event().await, Ok(Event::Close { .. })));
         let recv = recv.elapsed();
 
         // ------------------------------------------------
@@ -131,14 +147,14 @@ mod fastwebsockets_banchmark {
         ws.set_auto_close(true);
 
         let echo = Instant::now();
+        let mut ws = FragmentCollector::new(ws);
         loop {
             let frame = ws.read_frame().await?;
             match frame.opcode {
-                OpCode::Text | OpCode::Binary => {
-                    ws.write_frame(Frame::new(true, frame.opcode, None, frame.payload))
-                        .await?;
-                }
                 OpCode::Close => break,
+                OpCode::Text | OpCode::Binary => {
+                    ws.write_frame(frame).await?;
+                }
                 _ => {}
             }
         }
