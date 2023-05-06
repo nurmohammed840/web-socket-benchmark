@@ -13,20 +13,20 @@ cargo run -r
 ### Result
 
 ```
-tokio_tungstenite (send):  22.08092ms
-tokio_tungstenite (echo):  50.137045ms
-tokio_tungstenite (recv):  29.825227ms
-tokio_tungstenite:         102.059792ms
+tokio_tungstenite (send):  19.475364ms
+tokio_tungstenite (echo):  44.17762ms
+tokio_tungstenite (recv):  26.707251ms
+tokio_tungstenite:         90.375235ms
 
 
-web-socket (send):  5.817706ms
-web-socket (echo):  17.335015ms
-web-socket (recv):  8.911808ms
-web-socket:         32.064929ms
+web-socket (send):  5.73869ms
+web-socket (echo):  16.861769ms
+web-socket (recv):  8.589784ms
+web-socket:         31.190643ms
 
 
-fastwebsockets (send):  8.323607ms
-fastwebsockets (echo):  15.534314ms
-fastwebsockets (recv):  9.254209ms
-fastwebsockets:         33.11283ms
+fastwebsockets (send):  8.340585ms
+fastwebsockets (echo):  16.953069ms
+fastwebsockets (recv):  9.192684ms
+fastwebsockets:         34.487038ms
 ```
