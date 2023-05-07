@@ -1,4 +1,3 @@
-#![allow(warnings)]
 mod bench;
 use std::time::Instant;
 
@@ -90,7 +89,7 @@ mod web_socket_banchmark {
 
         for _ in 0..ITER {
             let Ok(Event::Data { ty, data }) = ws.recv_event().await else { panic!("invalid data") };
-            assert_eq!(ty, DataType::Complete(MessageType::Text));
+            assert!(matches!(ty, DataType::Complete(MessageType::Text)));
             assert_eq!(std::str::from_utf8(&data), Ok(MSG));
         }
         assert!(matches!(ws.recv_event().await, Ok(Event::Close { .. })));
