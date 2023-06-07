@@ -1,12 +1,13 @@
 [package]
-name = "web-socket-benchmark"
-version = "0.1.0"
 edition = "2021"
+name    = "web-socket-benchmark"
+version = "0.1.0"
 
 [dependencies]
 futures-util = { version = "0.3", default-features = false }
-tokio = { version = "1", default-features = false }
+tokio        = { version = "1", default-features = false }
 
+fastwebsockets    = "0.4"
+soketto           = "*"
 tokio-tungstenite = "*"
-fastwebsockets = "0.4"
-web-socket = { git = "https://github.com/nurmohammed840/websocket.rs.git", branch = "main" }
+web-socket        = { git = "https://github.com/nurmohammed840/websocket.rs.git", branch = "main" }

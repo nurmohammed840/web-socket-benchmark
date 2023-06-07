@@ -1,4 +1,5 @@
 mod bench;
+
 use std::time::Instant;
 
 const ITER: usize = 100000;
@@ -16,98 +17,16 @@ fn main() {
         println!("{HELP}");
     }
     bench::block_on(async {
+        fastwebsockets_banchmark::run().await.unwrap();
+        soketto_benchmark::run().await.unwrap();
         tokio_tungstenite_banchmark::run().await.unwrap();
         web_socket_banchmark::run().await.unwrap();
-        fastwebsockets_banchmark::run().await.unwrap();
     });
-}
-
-mod web_socket_banchmark {
-    use super::*;
-    use std::io::Result;
-    use tokio::io::AsyncWrite;
-    use web_socket::*;
-
-    async fn send_msg<IO>(ws: &mut WebSocket<IO>, ty: MessageType, buf: &[u8]) -> Result<()>
-    where
-        IO: Unpin + AsyncWrite,
-    {
-        match ty {
-            MessageType::Text => ws.send(std::str::from_utf8(buf).unwrap()).await,
-            MessageType::Binary => ws.send(buf).await,
-        }
-    }
-
-    pub async fn run() -> Result<()> {
-        let mut stream = bench::Stream::new(CAPACITY);
-        let total = Instant::now();
-
-        // ------------------------------------------------
-        stream.role_client();
-
-        let mut ws = WebSocket::client(&mut stream);
-        let send = Instant::now();
-
-        for _ in 0..ITER {
-            ws.send(MSG).await?;
-        }
-        ws.close(()).await?;
-
-        let send = send.elapsed();
-
-        // ------------------------------------------------
-        stream.role_server();
-
-        let mut ws = WebSocket::server(&mut stream);
-        let echo = Instant::now();
-
-        let mut buf = Vec::new();
-        loop {
-            match ws.recv_event().await? {
-                Event::Data { data, ty } => match ty {
-                    DataType::Stream(stream) => {
-                        buf.extend_from_slice(&data);
-                        if let Stream::End(ty) = stream {
-                            send_msg(&mut ws, ty, &buf).await?;
-                            buf.clear();
-                        }
-                    }
-                    DataType::Complete(ty) => send_msg(&mut ws, ty, &data).await?,
-                },
-                Event::Pong(..) => {}
-                Event::Ping(data) => ws.send_ping(data).await?,
-                Event::Error(..) | Event::Close { .. } => break ws.close(()).await?,
-            }
-        }
-        let echo = echo.elapsed();
-
-        // ------------------------------------------------
-        stream.role_client();
-
-        let mut ws = WebSocket::client(&mut stream);
-        let recv = Instant::now();
-
-        for _ in 0..ITER {
-            let Ok(Event::Data { ty, data }) = ws.recv_event().await else { panic!("invalid data") };
-            assert!(matches!(ty, DataType::Complete(MessageType::Text)));
-            assert_eq!(std::str::from_utf8(&data), Ok(MSG));
-        }
-        assert!(matches!(ws.recv_event().await, Ok(Event::Close { .. })));
-        let recv = recv.elapsed();
-
-        // ------------------------------------------------
-        let total = total.elapsed();
-        println!("\n");
-        println!("web-socket (send):  {send:?}");
-        println!("web-socket (echo):  {echo:?}");
-        println!("web-socket (recv):  {recv:?}");
-        println!("web-socket:         {total:?}",);
-        Ok(())
-    }
 }
 
 mod fastwebsockets_banchmark {
     use super::*;
+
     use fastwebsockets::*;
 
     type DynErr = Box<dyn std::error::Error + Sync + Send>;
@@ -185,8 +104,75 @@ mod fastwebsockets_banchmark {
     }
 }
 
+mod soketto_benchmark {
+    use super::*;
+
+    use soketto::{handshake::Client, Incoming};
+
+    type DynErr = Box<dyn std::error::Error + Sync + Send>;
+    type Result<T, E = DynErr> = std::result::Result<T, E>;
+
+    pub async fn run() -> Result<()> {
+        let mut stream = bench::Stream::new(CAPACITY);
+        let total = Instant::now();
+
+        // ------------------------------------------------
+        stream.role_client();
+
+        let (mut ws, _) = Client::new(&mut stream, "", "").into_builder().finish();
+        let send = Instant::now();
+        for _ in 0..ITER {
+            ws.send_text(MSG).await?;
+        }
+        ws.close().await?;
+        let send = send.elapsed();
+        drop(ws);
+        // ------------------------------------------------
+        stream.role_server();
+
+        let (mut tx, mut rx) = Client::new(&mut stream, "", "").into_builder().finish();
+        let echo = Instant::now();
+        loop {
+            let mut msg = Vec::new();
+            if let Incoming::Closed(_) = rx.receive(&mut msg).await? {
+                break;
+            } else {
+                tx.send_binary(msg).await?;
+            }
+        }
+        let echo = echo.elapsed();
+        drop(tx);
+        drop(rx);
+        // ------------------------------------------------
+        stream.role_client();
+
+        let (_, mut ws) = Client::new(&mut stream, "", "").into_builder().finish();
+        let recv = Instant::now();
+        for _ in 0..ITER {
+            let mut msg = Vec::new();
+            ws.receive(&mut msg).await.unwrap();
+            assert_eq!(MSG.as_bytes(), msg);
+        }
+        assert!(matches!(
+            ws.receive(&mut Vec::new()).await,
+            Ok(Incoming::Closed(_))
+        ));
+        let recv = recv.elapsed();
+
+        // ------------------------------------------------
+        let total = total.elapsed();
+        println!("\n");
+        println!("soketto (send):  {send:?}");
+        println!("soketto (echo):  {echo:?}");
+        println!("soketto (recv):  {recv:?}");
+        println!("soketto:         {total:?}",);
+        Ok(())
+    }
+}
+
 mod tokio_tungstenite_banchmark {
     use super::*;
+
     use futures_util::{SinkExt, StreamExt};
     use tokio_tungstenite::{
         tungstenite::{protocol::Role, Message, Result},
@@ -240,6 +226,92 @@ mod tokio_tungstenite_banchmark {
         println!("tokio_tungstenite (echo):  {echo:?}");
         println!("tokio_tungstenite (recv):  {recv:?}");
         println!("tokio_tungstenite:         {total:?}",);
+        Ok(())
+    }
+}
+
+mod web_socket_banchmark {
+    use std::io::Result;
+
+    use super::*;
+
+    use tokio::io::AsyncWrite;
+    use web_socket::*;
+
+    async fn send_msg<IO>(ws: &mut WebSocket<IO>, ty: MessageType, buf: &[u8]) -> Result<()>
+    where
+        IO: Unpin + AsyncWrite,
+    {
+        match ty {
+            MessageType::Text => ws.send(std::str::from_utf8(buf).unwrap()).await,
+            MessageType::Binary => ws.send(buf).await,
+        }
+    }
+
+    pub async fn run() -> Result<()> {
+        let mut stream = bench::Stream::new(CAPACITY);
+        let total = Instant::now();
+
+        // ------------------------------------------------
+        stream.role_client();
+
+        let mut ws = WebSocket::client(&mut stream);
+        let send = Instant::now();
+
+        for _ in 0..ITER {
+            ws.send(MSG).await?;
+        }
+        ws.close(()).await?;
+
+        let send = send.elapsed();
+
+        // ------------------------------------------------
+        stream.role_server();
+
+        let mut ws = WebSocket::server(&mut stream);
+        let echo = Instant::now();
+
+        let mut buf = Vec::new();
+        loop {
+            match ws.recv_event().await? {
+                Event::Data { data, ty } => match ty {
+                    DataType::Stream(stream) => {
+                        buf.extend_from_slice(&data);
+                        if let Stream::End(ty) = stream {
+                            send_msg(&mut ws, ty, &buf).await?;
+                            buf.clear();
+                        }
+                    }
+                    DataType::Complete(ty) => send_msg(&mut ws, ty, &data).await?,
+                },
+                Event::Pong(..) => {}
+                Event::Ping(data) => ws.send_ping(data).await?,
+                Event::Error(..) | Event::Close { .. } => break ws.close(()).await?,
+            }
+        }
+        let echo = echo.elapsed();
+
+        // ------------------------------------------------
+        stream.role_client();
+
+        let mut ws = WebSocket::client(&mut stream);
+        let recv = Instant::now();
+
+        for _ in 0..ITER {
+            let Ok(Event::Data { ty, data }) = ws.recv_event().await else { panic!("invalid data") };
+            assert!(matches!(ty, DataType::Complete(MessageType::Text)));
+            assert_eq!(std::str::from_utf8(&data), Ok(MSG));
+        }
+        assert!(matches!(ws.recv_event().await, Ok(Event::Close { .. })));
+        let recv = recv.elapsed();
+
+        // ------------------------------------------------
+        let total = total.elapsed();
+        println!("\n");
+        println!("web-socket (send):  {send:?}");
+        println!("web-socket (echo):  {echo:?}");
+        println!("web-socket (recv):  {recv:?}");
+        println!("web-socket:         {total:?}",);
         Ok(())
     }
 }
