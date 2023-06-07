@@ -3,7 +3,9 @@ use std::{
     pin::{pin, Pin},
     task::{Context, Poll},
 };
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+
+use futures_util::{AsyncRead as AsyncReadF, AsyncWrite as AsyncWriteF};
+use tokio::io::{AsyncRead as AsyncReadT, AsyncWrite as AsyncWriteT, ReadBuf};
 
 pub struct Stream {
     is_client: bool,
@@ -14,6 +16,16 @@ pub struct Stream {
 }
 
 impl Stream {
+    pub fn new(capacity: usize) -> Self {
+        Self {
+            server: Vec::with_capacity(capacity),
+            client: Vec::with_capacity(capacity),
+            server_read_pos: 0,
+            client_read_pos: 0,
+            is_client: true,
+        }
+    }
+
     pub fn role_server(&mut self) {
         self.is_client = false
     }
@@ -22,31 +34,72 @@ impl Stream {
     }
 }
 
-impl AsyncRead for Stream {
+impl AsyncReadF for Stream {
     fn poll_read(
         mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut ReadBuf<'_>,
+        cx: &mut Context,
+        buf: &mut [u8],
+    ) -> Poll<io::Result<usize>> {
+        if self.is_client {
+            let pos = self.client_read_pos;
+            let res = AsyncReadF::poll_read(pin!(&self.client[pos..]), cx, buf);
+            self.client_read_pos += buf.len();
+            res
+        } else {
+            let pos = self.server_read_pos;
+            let res = AsyncReadF::poll_read(pin!(&self.server[pos..]), cx, buf);
+            self.server_read_pos += buf.len();
+            res
+        }
+    }
+}
+impl AsyncWriteF for Stream {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        _: &mut Context,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        if self.is_client {
+            self.server.extend_from_slice(buf)
+        } else {
+            self.client.extend_from_slice(buf)
+        }
+        Poll::Ready(Ok(buf.len()))
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, _: &mut Context) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_close(self: Pin<&mut Self>, _: &mut Context) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+}
+
+impl AsyncReadT for Stream {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context,
+        buf: &mut ReadBuf,
     ) -> Poll<io::Result<()>> {
         if self.is_client {
             let pos = self.client_read_pos;
-            let res = pin!(&self.client[pos..]).poll_read(cx, buf);
+            let res = AsyncReadT::poll_read(pin!(&self.client[pos..]), cx, buf);
             self.client_read_pos += buf.filled().len();
             res
         } else {
             let pos = self.server_read_pos;
-            let res = pin!(&self.server[pos..]).poll_read(cx, buf);
+            let res = AsyncReadT::poll_read(pin!(&self.server[pos..]), cx, buf);
             self.server_read_pos += buf.filled().len();
             res
         }
     }
 }
-
-impl AsyncWrite for Stream {
+impl AsyncWriteT for Stream {
     #[inline]
     fn poll_write(
         mut self: Pin<&mut Self>,
-        _: &mut Context<'_>,
+        _: &mut Context,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
         if self.is_client {
@@ -60,8 +113,8 @@ impl AsyncWrite for Stream {
     #[inline]
     fn poll_write_vectored(
         mut self: Pin<&mut Self>,
-        _: &mut Context<'_>,
-        bufs: &[io::IoSlice<'_>],
+        _: &mut Context,
+        bufs: &[io::IoSlice],
     ) -> Poll<io::Result<usize>> {
         Poll::Ready(io::Write::write_vectored(
             if self.is_client {
@@ -74,7 +127,7 @@ impl AsyncWrite for Stream {
     }
 
     #[inline]
-    fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+    fn poll_flush(self: Pin<&mut Self>, _: &mut Context) -> Poll<io::Result<()>> {
         Poll::Ready(Ok(()))
     }
 
@@ -82,20 +135,8 @@ impl AsyncWrite for Stream {
         true
     }
 
-    fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+    fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context) -> Poll<io::Result<()>> {
         Poll::Ready(Ok(()))
-    }
-}
-
-impl Stream {
-    pub fn new(capacity: usize) -> Self {
-        Self {
-            server: Vec::with_capacity(capacity),
-            client: Vec::with_capacity(capacity),
-            server_read_pos: 0,
-            client_read_pos: 0,
-            is_client: true,
-        }
     }
 }
 
