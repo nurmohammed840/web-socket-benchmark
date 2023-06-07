@@ -127,6 +127,7 @@ mod soketto_benchmark {
         ws.close().await?;
         let send = send.elapsed();
         drop(ws);
+
         // ------------------------------------------------
         stream.role_server();
 
@@ -134,15 +135,22 @@ mod soketto_benchmark {
         let echo = Instant::now();
         loop {
             let mut msg = Vec::new();
-            if let Incoming::Closed(_) = rx.receive(&mut msg).await? {
-                break;
-            } else {
-                tx.send_binary(msg).await?;
+            match rx.receive(&mut msg).await? {
+                Incoming::Data(data) => match data {
+                    soketto::Data::Text(len) => {
+                        tx.send_text(std::str::from_utf8(&msg[..len]).unwrap())
+                            .await?
+                    }
+                    soketto::Data::Binary(len) => tx.send_binary(&msg[..len]).await?,
+                },
+                Incoming::Closed(_) => break,
+                _ => {}
             }
         }
         let echo = echo.elapsed();
         drop(tx);
         drop(rx);
+
         // ------------------------------------------------
         stream.role_client();
 
@@ -150,8 +158,9 @@ mod soketto_benchmark {
         let recv = Instant::now();
         for _ in 0..ITER {
             let mut msg = Vec::new();
-            ws.receive(&mut msg).await.unwrap();
-            assert_eq!(MSG.as_bytes(), msg);
+            let ty = ws.receive(&mut msg).await.unwrap();
+            assert!(matches!(ty, Incoming::Data(soketto::Data::Text(_))));
+            assert_eq!(std::str::from_utf8(&msg), Ok(MSG));
         }
         assert!(matches!(
             ws.receive(&mut Vec::new()).await,

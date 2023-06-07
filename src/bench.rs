@@ -4,8 +4,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use futures_util::{AsyncRead as AsyncReadF, AsyncWrite as AsyncWriteF};
-use tokio::io::{AsyncRead as AsyncReadT, AsyncWrite as AsyncWriteT, ReadBuf};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 pub struct Stream {
     is_client: bool,
@@ -32,33 +31,8 @@ impl Stream {
     pub fn role_client(&mut self) {
         self.is_client = true
     }
-}
 
-impl AsyncReadF for Stream {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
-        if self.is_client {
-            let pos = self.client_read_pos;
-            let res = AsyncReadF::poll_read(pin!(&self.client[pos..]), cx, buf);
-            self.client_read_pos += buf.len();
-            res
-        } else {
-            let pos = self.server_read_pos;
-            let res = AsyncReadF::poll_read(pin!(&self.server[pos..]), cx, buf);
-            self.server_read_pos += buf.len();
-            res
-        }
-    }
-}
-impl AsyncWriteF for Stream {
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        _: &mut Context,
-        buf: &[u8],
-    ) -> Poll<io::Result<usize>> {
+    fn _poll_write(&mut self, _: &mut Context, buf: &[u8]) -> Poll<io::Result<usize>> {
         if self.is_client {
             self.server.extend_from_slice(buf)
         } else {
@@ -67,52 +41,8 @@ impl AsyncWriteF for Stream {
         Poll::Ready(Ok(buf.len()))
     }
 
-    fn poll_flush(self: Pin<&mut Self>, _: &mut Context) -> Poll<io::Result<()>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn poll_close(self: Pin<&mut Self>, _: &mut Context) -> Poll<io::Result<()>> {
-        Poll::Ready(Ok(()))
-    }
-}
-
-impl AsyncReadT for Stream {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context,
-        buf: &mut ReadBuf,
-    ) -> Poll<io::Result<()>> {
-        if self.is_client {
-            let pos = self.client_read_pos;
-            let res = AsyncReadT::poll_read(pin!(&self.client[pos..]), cx, buf);
-            self.client_read_pos += buf.filled().len();
-            res
-        } else {
-            let pos = self.server_read_pos;
-            let res = AsyncReadT::poll_read(pin!(&self.server[pos..]), cx, buf);
-            self.server_read_pos += buf.filled().len();
-            res
-        }
-    }
-}
-impl AsyncWriteT for Stream {
-    #[inline]
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        _: &mut Context,
-        buf: &[u8],
-    ) -> Poll<io::Result<usize>> {
-        if self.is_client {
-            self.server.extend_from_slice(buf)
-        } else {
-            self.client.extend_from_slice(buf)
-        }
-        Poll::Ready(Ok(buf.len()))
-    }
-
-    #[inline]
-    fn poll_write_vectored(
-        mut self: Pin<&mut Self>,
+    fn _poll_write_vectored(
+        &mut self,
         _: &mut Context,
         bufs: &[io::IoSlice],
     ) -> Poll<io::Result<usize>> {
@@ -125,8 +55,89 @@ impl AsyncWriteT for Stream {
             bufs,
         ))
     }
+}
 
-    #[inline]
+impl futures_util::AsyncRead for Stream {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context,
+        buf: &mut [u8],
+    ) -> Poll<io::Result<usize>> {
+        if self.is_client {
+            let pos = self.client_read_pos;
+            let res = futures_util::AsyncRead::poll_read(pin!(&self.client[pos..]), cx, buf);
+            self.client_read_pos += buf.len();
+            res
+        } else {
+            let pos = self.server_read_pos;
+            let res = futures_util::AsyncRead::poll_read(pin!(&self.server[pos..]), cx, buf);
+            self.server_read_pos += buf.len();
+            res
+        }
+    }
+}
+impl futures_util::AsyncWrite for Stream {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        self._poll_write(cx, buf)
+    }
+
+    fn poll_write_vectored(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context,
+        bufs: &[io::IoSlice],
+    ) -> Poll<io::Result<usize>> {
+        self._poll_write_vectored(cx, bufs)
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, _: &mut Context) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_close(self: Pin<&mut Self>, _: &mut Context) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+}
+
+impl AsyncRead for Stream {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context,
+        buf: &mut ReadBuf,
+    ) -> Poll<io::Result<()>> {
+        if self.is_client {
+            let pos = self.client_read_pos;
+            let res = AsyncRead::poll_read(pin!(&self.client[pos..]), cx, buf);
+            self.client_read_pos += buf.filled().len();
+            res
+        } else {
+            let pos = self.server_read_pos;
+            let res = AsyncRead::poll_read(pin!(&self.server[pos..]), cx, buf);
+            self.server_read_pos += buf.filled().len();
+            res
+        }
+    }
+}
+impl AsyncWrite for Stream {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        self._poll_write(cx, buf)
+    }
+
+    fn poll_write_vectored(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context,
+        bufs: &[io::IoSlice],
+    ) -> Poll<io::Result<usize>> {
+        self._poll_write_vectored(cx, bufs)
+    }
+
     fn poll_flush(self: Pin<&mut Self>, _: &mut Context) -> Poll<io::Result<()>> {
         Poll::Ready(Ok(()))
     }
@@ -144,9 +155,11 @@ impl AsyncWriteT for Stream {
 
 use std::task::*;
 
-const DATA: () = ();
-const VTABLE: RawWakerVTable =
-    RawWakerVTable::new(|_| RawWaker::new(&DATA, &VTABLE), no_op, no_op, no_op);
+static DATA: () = ();
+static VTABLE: RawWakerVTable = RawWakerVTable::new(|_| raw_waker(), no_op, no_op, no_op);
+fn raw_waker() -> RawWaker {
+    RawWaker::new(&DATA, &VTABLE)
+}
 
 fn no_op(_: *const ()) {}
 
@@ -154,7 +167,7 @@ pub fn block_on<Fut>(mut fut: Fut) -> Fut::Output
 where
     Fut: std::future::Future,
 {
-    let waker = unsafe { Waker::from_raw(RawWaker::new(&DATA, &VTABLE)) };
+    let waker = unsafe { Waker::from_raw(raw_waker()) };
     let mut cx = Context::from_waker(&waker);
     let mut fut = std::pin::pin!(fut);
     loop {
